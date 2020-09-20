@@ -12,19 +12,40 @@ export const PageReadlyComfirm = {
     }
 }
 
+const CONST = {
+    READLY_STATUS: {
+        DEFAULT: 'unReady',
+        IS_READY: 'isReady',
+        UN_READY: 'unReady'
+    },
+
+    OTHER_USER_LIST: {
+        DEFAULT: [],
+        ITEM_FORMAT: {
+            readlyStatus: CONST.READLY_STATUS.DEFAULT,
+            name: 'user name',
+            numberNo: 'user number no',
+        }
+    },
+
+    READLY_START_LIST: {
+        DEFAULT: [],
+        ITEM_FORMAT: {
+            isReady: false,
+            name: 'user name',
+            numberNo: 'user number no',
+        }
+    }
+}
+
 class ReactComponent extends Component {
     constructor (props) {
         super(props)
 
         this.state = {
-            myReadlyStatus: 'isReady',
-            otherUserList: [
-                // {
-                //     readlyStatus: 'isReady',
-                //     userName,
-                //     userNo,
-                // }
-            ]
+            myReadlyStatus: CONST.READLY_STATUS.DEFAULT,
+            otherUserList: CONST.OTHER_USER_LIST.DEFAULT,
+            readlyStartList: CONST.READLY_START_LIST.DEFAULT
         }
 
         this.confirmStartPopup = React.createRef()
@@ -50,9 +71,13 @@ class ReactComponent extends Component {
         this.confirmStartPopup.cancelCountDown()
     }
 
+    WS_Income_ReadlyStartList(readlyStartList) {
+        this.setState({ readlyStartList })
+    }
+
     readlyHandle() {
         const { myReadlyStatus, otherUserList } = this.state
-        const switchReadlyStatus = myReadlyStatus === 'isReady' ? 'unReady' : 'isReady'
+        const switchReadlyStatus = myReadlyStatus === CONST.READLY_STATUS.IS_READY ? CONST.READLY_STATUS.UN_READY : CONST.READLY_STATUS.IS_READY
 
         const repeatInstance = isRepeat({ userNameAndNumberNo: User, otherUserList })
         if (repeatInstance.result === 1) return popOut(repeatInstance.message)
@@ -92,8 +117,10 @@ class ReactComponent extends Component {
             <ReadlyButton
                 onClick={this.readlyHandle}
             >{ myReadlyStatus === 'unReady' ? '准备' : '取消准备'}</ReadlyButton>
-            <StartConfirmPopup 
+            {/* is same as other.jsx | please abstract it */}
+            <ConfirmStartPopup 
                 ref={ref = this.confirmStartPopup}
+                readlyStartList={readlyStartList}
                 cancel={this.cancelStartHandle}
             />
         </div>
