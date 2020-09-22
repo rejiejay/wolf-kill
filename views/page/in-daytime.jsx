@@ -2,10 +2,10 @@ import WebSocket from './module/web-socket'
 import User from './module/user'
 import render from './components/render'
 
-export const PageInDark = {
+export const PageInDayTime = {
     ref: React.createRef(),
 
-    react: <ReactComponent ref={PageInDark.ref} />,
+    react: <ReactComponent ref={PageInDayTime.ref} />,
 
     init: async function () {
         await render(this.react)
@@ -14,54 +14,67 @@ export const PageInDark = {
 }
 
 const CONST = {
-    ROLE_PART_NAME: {
-        LIST: ['Villagers', 'Wlof', 'KingWolf', 'Hunter', 'Predictor', 'Witch', 'Idiot']
-    },
-
-    ROLE_PART: {
-        NAME: {
-            DEFAULT: 'Villagers',
-            LIST: CONST.ROLE_PART_NAME.LIST
+    LEADERSHIP_SELECT_STATUS: {
+        DEFAULT: [],
+        ITEM_FORMAT: {
+            voteGetCount: 0,
+            voteFor: { name: 'user name', numberNo: 'user number no' },
+            isAbandoned: false,
+            name: 'user name',
+            numberNo: 'user number no'
         }
     },
 
-    PLAY_STATUS: {
-        DEFAULT: 'active',
-        ACTIVE: 'active',
-        DEATH: 'death'
-    },
-
-    ROUND_STATUS: {
-        ACTIVE: 'active',
-        DEATH: 'death',
-        POISON: 'poison'
-    },
+    LEADERSHIP: {
+        DEFAULT: {},
+        FORMAT: {
+            name: 'user name',
+            numberNo: 'user number no'
+        }
+    }
 }
 
 class ReactComponent extends Component {
     constructor (props) {
         super(props)
 
-        this.state = {
-            canCardOpen: false
-        }
+        this.state = { }
+        this.leadershipInfor = CONST.LEADERSHIP.DEFAULT
+
         this.card = React.createRef()
-        this.wlofKillSelected = React.createRef()
-        this.predictorSelected = React.createRef()
-        this.witchSelected = React.createRef()
+        this.leadershipSelected = React.createRef()
+        this.roundStartSelected = React.createRef()
+        this.kingWolfEffectSelected = React.createRef()
     }
 
-    WS_Income_RoundStart({ actionRoleNames }) {
-        if (!actionRoleNames.includes(User.playRole.name)) return
+    async init() {
+        const dayTimeStatusInstance = await fetch.get('getDayTimeStatus')
+        if (dayTimeStatusInstance.result !== 1) return this.reGetConfirm(this.init)
 
-        this.setState({ canCardOpen: true }, this.openCard)
+        const dayTimeStatus = dayTimeStatusInstance.data
+        const { isFirstDay, isSecondDay, leadershipInfor, lastNightResult } = dayTimeStatus
 
-        const actionHandle = this[`${User.playRole.name}ActionHandle`]
-        actionHandle()
+        await Modal.confirm(lastNightResult)
+        if (isFirstDay) this.leadershipInfor = await this.leadershipSelected.show()
+        if (isSecondDay && !leadershipInfor) this.leadershipInfor = await this.leadershipSelected.show()
+        this.leadershipInfor = leadershipInfor
+        if (leadershipInfor.isBreakOff) return await this.roundStartByRandom()
+        if (leadershipInfor.isNotNil && leadershipInfor.isKill) await this.leadershipHandOut()
+        if (leadershipInfor.numberNo === User.playRole.numberNo) await this.roundStartSelected.show()
     }
 
-    WS_Income_RoundEnd() {
-        this.setState({ canCardOpen: false }, this.hidenCard)
+    WS_Income_LeadershipSelected({ leadershipSelectStatus = CONST.LEADERSHIP_SELECT_STATUS.DEFAULT }) { 
+        this.leadershipSelected.incomeState(leadershipSelectStatus)
+    }
+
+    WS_Income_RoundStart({ actionNumberNo }) { }
+
+    async WS_Income_RoundEnd({ endTip }) {
+    }
+
+    async WS_Income_IntoDark({ reason }) {
+        await Notification.tip(reason)
+        this.leadershipSelected.hiden() // For selected
     }
 
     openCard() {
@@ -75,69 +88,36 @@ class ReactComponent extends Component {
         this.card.hiden()
     }
 
-    async WlofActionHandle() {
-        if (User.playStatus === CONST.PLAY_STATUS.DEATH) return tipConfirm('Please select what wlof want to kill')
-        .then(() => fetch.hidenCard())
-
-        const killSelected = await this.wlofKillSelected.show()
-        fetch.post('EndWlofRound', killSelected)
+    wlofEffectHandle() {
+        const wlofEffectConfirmInstance = await Modal.confirm('Are you sure you want to activate your effect skills')
+        if (wlofEffectConfirmInstance.result !== 1) return
+        if (User.playRole.name === 'KingWolf') await this.KingWolfEffectSelected.show()
+        const fetchtInstance = await fetch.post('WlofEffectIntoDark')
+        if (fetchtInstance.result !== 1) return alert(fetchtInstance.message)
     }
 
-    async PredictorActionHandle() {
-        if (User.playStatus === CONST.PLAY_STATUS.DEATH) return tipConfirm('you are out of game')
-        .then(() => fetch.post('EndPredictorRound'))
-
-        const selectedResult = await this.predictorSelected.show()
-        fetch.post('EndWlofRound', selectedResult)
-    }
-
-    async HunterActionHandle() {
-        if (User.playStatus === CONST.PLAY_STATUS.DEATH) return tipConfirm('you are out of game')
-        .then(() => fetch.post('EndHunterRound'))
-
-        const hunterPlayStatusInstance = await fetch.get('getHunterPlayStatus')
-        if (hunterPlayStatusInstance.result !== 1) return this.reGetConfirm(this.HunterActionHandle)
-        const hunterPlayStatus = hunterPlayStatusInstance.data
-
-        if (hunterPlayStatus === CONST.ROUND_STATUS.ACTIVE) return tipConfirm('you are active of this round')
-        .then(() => fetch.post('EndHunterRound'))
-
-        if (hunterPlayStatus === CONST.ROUND_STATUS.POISON) return tipConfirm('you are death  of this round which is poison by witch, and you can`t do anything')
-        .then(() => fetch.post('EndHunterRound'))
-
-        await tipConfirm('you are death of this round which is kill by wolf, and you can activate skills when in daytime')
-
-        const isConfirm = await selectedConfirm('Do you want to activate skills: Show everyone the identity of a hunter and selected shoot kill one person')
-
-        if (!isConfirm) return fetch.post('EndHunterRound')
-
-        fetch.post('HunterSkillActivate')
-    }
-
-    async WitchActionHandle() {
-        if (User.playStatus === CONST.PLAY_STATUS.DEATH) return tipConfirm('you are out of game')
-        .then(() => fetch.post('EndWitchRound'))
-
-        const selectedResult = await this.predictorSelected.show()
-        fetch.post('EndWitchRound', selectedResult)
+    roundEndHandle() {
+        const fetchtInstance = await fetch.post('roundEnd')
+        if (fetchtInstance.result !== 1) return this.reGetConfirm(this.roundEndHandle)
     }
 
     render() {
-        const { canCardOpen } = this.state
-
         return <div>
             {/* CardBackground will same as other.jsx | when it repeat, please abstract it */}
             <Card
                 ref={ref = this.card}
-                canCardOpen={canCardOpen}
                 onClick={this.openCard}
             >
                 <PlayRole roleInfor={User.playRole} onClick={this.hidenCard}/>
+                {['Wlof', 'KingWolf'].includes(User.playRole.name) && // can move to inside
+                <WlofEffectSkill onClick={this.wlofEffectHandle}/>}
+                <RoundEnd onClick={this.roundEndHandle}/>
             </Card>
 
-            <WlofKillSelected ref={ref = this.wlofKillSelected} />
-            <PredictorSelected ref={ref = this.predictorSelected} />
-            <WitchSelected ref={ref = this.witchSelected} />
+            <LeadershipSelected ref={ref = this.leadershipSelected} />
+            <RoundStartSelected ref={ref = this.roundStartSelected} />
+            <KingWolfEffectSelected ref={ref = this.kingWolfEffectSelected} />
+
         </div>
     }
 }
