@@ -38,13 +38,16 @@ class ReactComponent extends Component {
     constructor (props) {
         super(props)
 
-        this.state = { }
+        this.state = {
+            actionNumberNo: null
+        }
         this.leadershipInfor = CONST.LEADERSHIP.DEFAULT
 
         this.card = React.createRef()
         this.leadershipSelected = React.createRef()
         this.roundStartSelected = React.createRef()
         this.kingWolfEffectSelected = React.createRef()
+        this.voteEffectSelected = React.createRef()
     }
 
     async init() {
@@ -59,7 +62,7 @@ class ReactComponent extends Component {
         if (isSecondDay && !leadershipInfor) this.leadershipInfor = await this.leadershipSelected.show()
         this.leadershipInfor = leadershipInfor
         if (leadershipInfor.isBreakOff) return await this.roundStartByRandom()
-        if (leadershipInfor.isNotNil && leadershipInfor.isKill) await this.leadershipHandOut()
+        if (leadershipInfor.isNotNil && leadershipInfor.isBeKill) await this.leadershipHandOut()
         if (leadershipInfor.numberNo === User.playRole.numberNo) await this.roundStartSelected.show()
     }
 
@@ -67,9 +70,17 @@ class ReactComponent extends Component {
         this.leadershipSelected.incomeState(leadershipSelectStatus)
     }
 
-    WS_Income_RoundStart({ actionNumberNo }) { }
+    WS_Income_RoundStart({ actionNumberNo }) {
+        this.setState({ actionNumberNo })
+    }
 
-    async WS_Income_RoundEnd({ endTip }) {
+    WS_Income_RoundVoteSelected() {
+        this.voteEffectSelected.show()
+    }
+
+    async WS_Income_RoundEnd({ endTip,  }) {
+        this.card.hiden()
+        if (endTip) await Notification.tip(endTip)
     }
 
     async WS_Income_IntoDark({ reason }) {
@@ -102,6 +113,8 @@ class ReactComponent extends Component {
     }
 
     render() {
+        const { actionNumberNo } = this.state
+
         return <div>
             {/* CardBackground will same as other.jsx | when it repeat, please abstract it */}
             <Card
@@ -111,13 +124,16 @@ class ReactComponent extends Component {
                 <PlayRole roleInfor={User.playRole} onClick={this.hidenCard}/>
                 {['Wlof', 'KingWolf'].includes(User.playRole.name) && // can move to inside
                 <WlofEffectSkill onClick={this.wlofEffectHandle}/>}
-                <RoundEnd onClick={this.roundEndHandle}/>
+                <RoundEnd
+                    start={actionNumberNo === User.playRole.numberNo} 
+                    onClick={this.roundEndHandle}
+                />
             </Card>
 
             <LeadershipSelected ref={ref = this.leadershipSelected} />
             <RoundStartSelected ref={ref = this.roundStartSelected} />
             <KingWolfEffectSelected ref={ref = this.kingWolfEffectSelected} />
-
+            <VoteEffectSelected ref={ref = this.voteEffectSelected} />
         </div>
     }
 }
